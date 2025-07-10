@@ -1,6 +1,6 @@
 {
   "name": "popover-lite",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Tiny wrapper over the native Popover API + CSS Anchor Positioning",
   "type": "module",
   "main": "./dist/index.js",
