@@ -1,0 +1,37 @@
+.popover-lite {
+    position: absolute;               /* required for anchor() */
+    background: var(--popover-bg,#fff);
+    border: 1px solid var(--popover-border,#ccc);
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Bottom (default) */
+  :popover-open.popover-lite[data-side="bottom"] {
+    inset-block-start: anchor(bottom outside);
+    inset-inline-start: anchor(center);
+    translate: 0 var(--gap,8px);
+  }
+  
+  /* Top */
+  :popover-open.popover-lite[data-side="top"] {
+    inset-block-end: anchor(top outside);
+    inset-inline-start: anchor(center);
+    translate: 0 calc(-1 * var(--gap,8px));
+  }
+  
+  /* Left */
+  :popover-open.popover-lite[data-side="left"] {
+    inset-inline-end: anchor(left outside);
+    inset-block-start: anchor(center);
+    translate: calc(-1 * var(--gap,8px)) 0;
+  }
+  
+  /* Right */
+  :popover-open.popover-lite[data-side="right"] {
+    inset-inline-start: anchor(right outside);
+    inset-block-start: anchor(center);
+    translate: var(--gap,8px) 0;
+  }
+  

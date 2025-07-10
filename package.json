@@ -1,0 +1,45 @@
+{
+  "name": "popover-lite",
+  "version": "1.0.0",
+  "description": "Tiny wrapper over the native Popover API + CSS Anchor Positioning",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akpsan/popover-lite.git"
+  },
+  "bugs": {
+    "url": "https://github.com/akpsan/popover-lite/issues"
+  },
+  "homepage": "https://github.com/akpsan/popover-lite#readme",
+  "scripts": {
+    "build": "node build.js && tsc -p tsconfig.json",
+    "watch": "node build.js --watch & tsc -p tsconfig.json --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.6",
+    "typescript": "^5.8.3"
+  },
+  "keywords": [
+    "popover",
+    "tooltip",
+    "floating-ui",
+    "anchor-positioning"
+  ],
+  "author": "akpsan"
+}
