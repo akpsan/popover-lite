@@ -29,6 +29,7 @@
   "scripts": {
     "build": "node build.js && tsc -p tsconfig.json",
     "watch": "node build.js --watch & tsc -p tsconfig.json --watch",
+    "size": "npm run build && ls -la dist/",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

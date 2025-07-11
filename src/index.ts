@@ -1,19 +1,19 @@
-// popover-lite — v0.1.2
+// popover-lite — v0.2.0 (Pragmatic Edition)
 // Lightweight Popper‑style helper built on the native Popover API + CSS Anchor Positioning.
 // MIT © 2025 — https://github.com/akpsan/popover-lite
 
 /*************************************************
  *              Public Types & API               *
  *************************************************/
-export type Placement = 'top' | 'bottom' | 'left' | 'right';
+export type Placement = "top" | "bottom" | "left" | "right";
 
 export interface PopoverOptions {
-  /** Preferred placement or priority list. */
-  placement?: Placement | Placement[];
-  /** Gap between popover and anchor, in px. */
-  offset?: number | { x?: number; y?: number };
-  /** Extra bias per placement used in scoring. */
-  preference?: Partial<Record<Placement, number>>;
+  /** Preferred placement. If it doesn't fit, we'll try others. */
+  placement?: Placement;
+  /** Gap between popover and anchor, in px. Default: 8 */
+  offset?: number;
+  /** Fallback order when preferred placement doesn't fit. Default: all directions */
+  fallbacks?: Placement[];
 }
 
 export interface PopoverController {
@@ -28,94 +28,101 @@ export interface PopoverController {
 /*************************************************
  *                 Helper utils                  *
  *************************************************/
-function setPlacementVar(el: HTMLElement, p: Placement) {
-  el.style.setProperty('--placement', p);
-  el.dataset.side = p;
+function ensureAnchorId(anchor: HTMLElement): string {
+  if (!anchor.id) {
+    anchor.id = `popover-anchor-${crypto.randomUUID()}`;
+  }
+  return anchor.id;
 }
 
-function applyOffsetVars(el: HTMLElement, off: PopoverOptions['offset']) {
-  if (typeof off === 'number') {
-    el.style.setProperty('--gap', `${off}px`);
-  } else if (off) {
-    if (off.x != null) el.style.setProperty('--offset-x', `${off.x}px`);
-    if (off.y != null) el.style.setProperty('--offset-y', `${off.y}px`);
-  }
+function setPlacement(el: HTMLElement, placement: Placement) {
+  el.style.setProperty("--placement", placement);
+  el.dataset.placement = placement;
+}
+
+function setOffset(el: HTMLElement, offset: number) {
+  el.style.setProperty("--offset", `${offset}px`);
 }
 
 function getScrollParents(el: HTMLElement): HTMLElement[] {
   const parents: HTMLElement[] = [];
-  let p: HTMLElement | null = el.parentElement;
-  while (p) {
-    const st = getComputedStyle(p);
-    if (/auto|scroll|overlay/.test(st.overflow + st.overflowX + st.overflowY)) {
-      parents.push(p);
+  let current: HTMLElement | null = el.parentElement;
+
+  while (current) {
+    const style = getComputedStyle(current);
+    const overflow = style.overflow + style.overflowX + style.overflowY;
+    if (/auto|scroll|overlay/.test(overflow)) {
+      parents.push(current);
     }
-    p = p.parentElement;
+    current = current.parentElement;
   }
+
   parents.push(document.documentElement);
   return parents;
 }
 
 /*************************************************
- *          Placement scoring engine             *
+ *            Simple placement logic             *
  *************************************************/
-export interface PlacementScore {
-  placement: Placement;
-  space: number;
-  overflow: number;
-  misalign: number;
-  preference: number;
-  score: number;
-}
-
-export function computeScores(
-  anchor: HTMLElement,
-  size: { width: number; height: number },
-  prefs: Partial<Record<Placement, number>> = {},
-): PlacementScore[] {
-  const r = anchor.getBoundingClientRect();
+function getAvailableSpace(anchor: HTMLElement, placement: Placement): number {
+  const rect = anchor.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  const candidates: Record<Placement, PlacementScore> = {
-    top: {
-      placement: 'top',
-      space: r.top,
-      overflow: Math.max(size.height - r.top, 0),
-      misalign: Math.abs(r.left + r.width / 2 - (r.left + size.width / 2)),
-      preference: prefs.top ?? 0,
-      score: 0,
-    },
-    bottom: {
-      placement: 'bottom',
-      space: vh - r.bottom,
-      overflow: Math.max(size.height - (vh - r.bottom), 0),
-      misalign: Math.abs(r.left + r.width / 2 - (r.left + size.width / 2)),
-      preference: prefs.bottom ?? 0,
-      score: 0,
-    },
-    left: {
-      placement: 'left',
-      space: r.left,
-      overflow: Math.max(size.width - r.left, 0),
-      misalign: Math.abs(r.top + r.height / 2 - (r.top + size.height / 2)),
-      preference: prefs.left ?? 0,
-      score: 0,
-    },
-    right: {
-      placement: 'right',
-      space: vw - r.right,
-      overflow: Math.max(size.width - (vw - r.right), 0),
-      misalign: Math.abs(r.top + r.height / 2 - (r.top + size.height / 2)),
-      preference: prefs.right ?? 0,
-      score: 0,
-    },
+  switch (placement) {
+    case "top":
+      return rect.top;
+    case "bottom":
+      return vh - rect.bottom;
+    case "left":
+      return rect.left;
+    case "right":
+      return vw - rect.right;
+  }
+}
+
+function findBestPlacement(
+  anchor: HTMLElement,
+  popover: HTMLElement,
+  preferred: Placement,
+  fallbacks: Placement[]
+): Placement {
+  const needed = {
+    width: popover.offsetWidth,
+    height: popover.offsetHeight,
   };
 
-  for (const s of Object.values(candidates)) {
-    s.score = s.space - s.overflow - s.misalign + s.preference;
+  // Try preferred first
+  const preferredSpace = getAvailableSpace(anchor, preferred);
+  const requiredSpace =
+    preferred === "top" || preferred === "bottom"
+      ? needed.height
+      : needed.width;
+
+  if (preferredSpace >= requiredSpace) {
+    return preferred;
   }
-  return Object.values(candidates).sort((a, b) => b.score - a.score);
+
+  // Try fallbacks
+  for (const fallback of fallbacks) {
+    const space = getAvailableSpace(anchor, fallback);
+    const required =
+      fallback === "top" || fallback === "bottom"
+        ? needed.height
+        : needed.width;
+
+    if (space >= required) {
+      return fallback;
+    }
+  }
+
+  // Nothing fits perfectly, use the one with most space
+  const options = [preferred, ...fallbacks];
+  return options.reduce((best, current) => {
+    const bestSpace = getAvailableSpace(anchor, best);
+    const currentSpace = getAvailableSpace(anchor, current);
+    return currentSpace > bestSpace ? current : best;
+  });
 }
 
 /*************************************************
@@ -123,62 +130,82 @@ export function computeScores(
  *************************************************/
 export function createPopover(
   anchor: HTMLElement,
-  opts: PopoverOptions = {},
+  opts: PopoverOptions = {}
 ): PopoverController {
-  const { placement = 'bottom', offset = 8, preference = {} } = opts;
+  const {
+    placement = "bottom",
+    offset = 8,
+    fallbacks = ["top", "right", "left"].filter(
+      (p) => p !== placement
+    ) as Placement[],
+  } = opts;
 
-  if (!anchor.id) anchor.id = `anchor-${Math.random().toString(36).slice(2)}`;
-  const anchorId = anchor.id;
+  const anchorId = ensureAnchorId(anchor);
 
-  const pop = document.createElement('div');
-  pop.setAttribute('popover', 'auto');
-  pop.setAttribute('anchor', anchorId);
-  pop.className = 'popover-lite';
-  pop.tabIndex = -1;
+  const popover = document.createElement("div");
+  popover.setAttribute("popover", "auto");
+  popover.setAttribute("anchor", anchorId);
+  popover.className = "popover-lite";
+  popover.tabIndex = -1;
 
-  applyOffsetVars(pop, offset);
-  setPlacementVar(pop, Array.isArray(placement) ? placement[0] : placement);
+  setOffset(popover, offset);
+  setPlacement(popover, placement);
 
-  document.body.appendChild(pop);
-
-  function computeBest(): Placement {
-    const order = Array.isArray(placement) ? placement : [placement];
-    const size = { width: pop.offsetWidth, height: pop.offsetHeight };
-    const scores = computeScores(anchor, size, preference);
-    for (let i = 0; i < order.length; i++) {
-      const bonus = (order.length - i) * 10_000;
-      const s = scores.find(x => x.placement === order[i]);
-      if (s) s.score += bonus;
-    }
-    return scores[0].placement;
-  }
+  document.body.appendChild(popover);
 
   function update() {
-    setPlacementVar(pop, computeBest());
+    const best = findBestPlacement(anchor, popover, placement, fallbacks);
+    setPlacement(popover, best);
   }
+
   function show() {
     update();
-    // @ts-ignore
-    pop.showPopover ? pop.showPopover() : pop.togglePopover?.();
+    if ("showPopover" in popover && typeof popover.showPopover === "function") {
+      popover.showPopover();
+    } else {
+      // Fallback for older browsers
+      popover.style.display = "block";
+    }
   }
+
   function hide() {
-    // @ts-ignore
-    pop.hidePopover ? pop.hidePopover() : pop.togglePopover?.();
+    if ("hidePopover" in popover && typeof popover.hidePopover === "function") {
+      popover.hidePopover();
+    } else {
+      popover.style.display = "none";
+    }
   }
+
   function toggle() {
-    pop.matches(':popover-open') ? hide() : show();
+    const isOpen =
+      popover.matches(":popover-open") || popover.style.display === "block";
+    isOpen ? hide() : show();
   }
+
   function destroy() {
-    ro.disconnect();
-    scrollParents.forEach(p => p.removeEventListener('scroll', update));
-    pop.remove();
+    resizeObserver.disconnect();
+    scrollParents.forEach((parent) =>
+      parent.removeEventListener("scroll", update)
+    );
+    popover.remove();
   }
 
-  const ro = new ResizeObserver(() => update());
-  ro.observe(anchor);
-  const scrollParents = getScrollParents(anchor);
-  scrollParents.forEach(p => p.addEventListener('scroll', update, { passive: true }));
+  // Set up reactive updates
+  const resizeObserver = new ResizeObserver(update);
+  resizeObserver.observe(anchor);
+  resizeObserver.observe(popover);
 
-  const controller: PopoverController = { element: pop, show, hide, toggle, update, destroy };
-  return controller;
+  const scrollParents = getScrollParents(anchor);
+  scrollParents.forEach((parent) =>
+    parent.addEventListener("scroll", update, { passive: true })
+  );
+
+  return {
+    element: popover,
+    show,
+    hide,
+    toggle,
+    update,
+    destroy,
+  };
 }
